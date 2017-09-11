@@ -1,12 +1,22 @@
+from fractions import gcd
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 
+def get_min_ratio(w, h):
+    wh_gcd = gcd(w, h)
+    return w // wh_gcd, h // wh_gcd
+
 class DCGAN_D(nn.Module):
-    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0):
+    def __init__(self, isize, nc, ndf, ngpu, n_extra_layers=0):
         super(DCGAN_D, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        im_w, im_h = isize
+        isize = min(im_h, im_w)
+        min_w, min_h = get_min_ratio(im_w, im_h) if im_w != im_h else (2, 2)
+        assert im_w % 16 == 0 and im_h % 16 == 0 and (min_w == 2 or min_h == 2), "isize has to be a multiple of 16, ratio must include 2"
+        min_w *= 2
+        min_h *= 2
 
         main = nn.Sequential()
         # input is nc x isize x isize
@@ -39,7 +49,7 @@ class DCGAN_D(nn.Module):
 
         # state size. K x 4 x 4
         main.add_module('final.{0}-{1}.conv'.format(cndf, 1),
-                        nn.Conv2d(cndf, 1, 4, 1, 0, bias=False))
+                        nn.Conv2d(cndf, 1, (min_h, min_w), 1, 0, bias=False))
         self.main = main
 
 
@@ -56,7 +66,12 @@ class DCGAN_G(nn.Module):
     def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
         super(DCGAN_G, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        im_w, im_h = isize
+        isize = min(im_h, im_w)
+        min_w, min_h = get_min_ratio(im_w, im_h) if im_w != im_h else (2, 2)
+        assert im_w % 16 == 0 and im_h % 16 == 0 and (min_w == 2 or min_h == 2), "isize has to be a multiple of 16, ratio must include 2"
+        min_w *= 2
+        min_h *= 2
 
         cngf, tisize = ngf//2, 4
         while tisize != isize:
@@ -66,7 +81,7 @@ class DCGAN_G(nn.Module):
         main = nn.Sequential()
         # input is Z, going into a convolution
         main.add_module('initial.{0}-{1}.convt'.format(nz, cngf),
-                        nn.ConvTranspose2d(nz, cngf, 4, 1, 0, bias=False))
+                        nn.ConvTranspose2d(nz, cngf, (min_h, min_w), 1, 0, bias=False))
         main.add_module('initial.{0}.batchnorm'.format(cngf),
                         nn.BatchNorm2d(cngf))
         main.add_module('initial.{0}.relu'.format(cngf),
@@ -106,10 +121,15 @@ class DCGAN_G(nn.Module):
         return output 
 ###############################################################################
 class DCGAN_D_nobn(nn.Module):
-    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0):
+    def __init__(self, isize, nc, ndf, ngpu, n_extra_layers=0):
         super(DCGAN_D_nobn, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        im_w, im_h = isize
+        isize = min(im_h, im_w)
+        min_w, min_h = get_min_ratio(im_w, im_h) if im_w != im_h else (2, 2)
+        assert im_w % 16 == 0 and im_h % 16 == 0 and (min_w == 2 or min_h == 2), "isize has to be a multiple of 16, ratio must include 2"
+        min_w *= 2
+        min_h *= 2
 
         main = nn.Sequential()
         # input is nc x isize x isize
@@ -139,7 +159,7 @@ class DCGAN_D_nobn(nn.Module):
 
         # state size. K x 4 x 4
         main.add_module('final.{0}-{1}.conv'.format(cndf, 1),
-                        nn.Conv2d(cndf, 1, 4, 1, 0, bias=False))
+                        nn.Conv2d(cndf, 1, (min_h, min_w), 1, 0, bias=False))
         self.main = main
 
 
@@ -156,7 +176,12 @@ class DCGAN_G_nobn(nn.Module):
     def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
         super(DCGAN_G_nobn, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
+        im_w, im_h = isize
+        isize = min(im_h, im_w)
+        min_w, min_h = get_min_ratio(im_w, im_h) if im_w != im_h else (2, 2)
+        assert im_w % 16 == 0 and im_h % 16 == 0 and (min_w == 2 or min_h == 2), "isize has to be a multiple of 16, ratio must include 2"
+        min_w *= 2
+        min_h *= 2
 
         cngf, tisize = ngf//2, 4
         while tisize != isize:
@@ -165,7 +190,7 @@ class DCGAN_G_nobn(nn.Module):
 
         main = nn.Sequential()
         main.add_module('initial.{0}-{1}.convt'.format(nz, cngf),
-                        nn.ConvTranspose2d(nz, cngf, 4, 1, 0, bias=False))
+                        nn.ConvTranspose2d(nz, cngf, (min_h, min_w), 1, 0, bias=False))
         main.add_module('initial.{0}.relu'.format(cngf),
                         nn.ReLU(True))
 

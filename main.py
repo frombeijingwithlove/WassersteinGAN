@@ -21,7 +21,8 @@ parser.add_argument('--dataset', required=True, help='cifar10 | lsun | imagenet 
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
 parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
-parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--image_w', type=int, default=128, help='the width of the input image to network')
+parser.add_argument('--image_h', type=int, default=192, help='the height of the input image to network')
 parser.add_argument('--nc', type=int, default=3, help='input image channels')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
@@ -44,6 +45,8 @@ parser.add_argument('--n_extra_layers', type=int, default=0, help='Number of ext
 parser.add_argument('--experiment', default=None, help='Where to store samples and models')
 parser.add_argument('--adam', action='store_true', help='Whether to use adam (default is rmsprop)')
 opt = parser.parse_args()
+opt.imageSize = (opt.image_w, opt.image_h)
+opt.minEdge = min(opt.imageSize)
 print(opt)
 
 if opt.experiment is None:
@@ -65,7 +68,6 @@ if opt.dataset in ['imagenet', 'folder', 'lfw']:
     dataset = dset.ImageFolder(root=opt.dataroot,
                                transform=transforms.Compose([
                                    transforms.Scale(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
@@ -73,7 +75,7 @@ elif opt.dataset == 'lsun':
     dataset = dset.LSUN(db_path=opt.dataroot, classes=['bedroom_train'],
                         transform=transforms.Compose([
                             transforms.Scale(opt.imageSize),
-                            transforms.CenterCrop(opt.imageSize),
+                            transforms.CenterCrop(opt.minEdge),
                             transforms.ToTensor(),
                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                         ]))
@@ -106,7 +108,7 @@ def weights_init(m):
         m.bias.data.fill_(0)
 
 if opt.noBN:
-    netG = dcgan.DCGAN_G_nobn(opt.imageSize, nz, nc, ngf, ngpu, n_extra_layers)
+    netG = dcgan.DCGAN_G_nobn(opt.imageSize, nc, ngf, ngpu, n_extra_layers)
 elif opt.mlp_G:
     netG = mlp.MLP_G(opt.imageSize, nz, nc, ngf, ngpu)
 else:
@@ -120,14 +122,14 @@ print(netG)
 if opt.mlp_D:
     netD = mlp.MLP_D(opt.imageSize, nz, nc, ndf, ngpu)
 else:
-    netD = dcgan.DCGAN_D(opt.imageSize, nz, nc, ndf, ngpu, n_extra_layers)
+    netD = dcgan.DCGAN_D(opt.imageSize, nc, ndf, ngpu, n_extra_layers)
     netD.apply(weights_init)
 
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
 
-input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
+input = torch.FloatTensor(opt.batchSize, 3, opt.image_h, opt.image_w)
 noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
 fixed_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
 one = torch.FloatTensor([1])
@@ -145,8 +147,8 @@ if opt.adam:
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=opt.lrG, betas=(opt.beta1, 0.999))
 else:
-    optimizerD = optim.RMSprop(netD.parameters(), lr = opt.lrD)
-    optimizerG = optim.RMSprop(netG.parameters(), lr = opt.lrG)
+    optimizerD = optim.RMSprop(netD.parameters(), lr=opt.lrD)
+    optimizerG = optim.RMSprop(netG.parameters(), lr=opt.lrG)
 
 gen_iterations = 0
 for epoch in range(opt.niter):
@@ -190,7 +192,7 @@ for epoch in range(opt.niter):
 
             # train with fake
             noise.resize_(opt.batchSize, nz, 1, 1).normal_(0, 1)
-            noisev = Variable(noise, volatile = True) # totally freeze netG
+            noisev = Variable(noise, volatile=True) # totally freeze netG
             fake = Variable(netG(noisev).data)
             inputv = fake
             errD_fake = netD(inputv)
