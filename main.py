@@ -68,6 +68,7 @@ if opt.dataset in ['imagenet', 'folder', 'lfw']:
     dataset = dset.ImageFolder(root=opt.dataroot,
                                transform=transforms.Compose([
                                    transforms.Scale(opt.imageSize),
+                                   transforms.RandomHorizontalFlip(), 
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
